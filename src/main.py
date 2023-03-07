@@ -68,11 +68,13 @@ fastapi_app = FastAPI()
 
 @fastapi_app.on_event("startup")
 async def startup_event():
+    log.info('Application startup')
     await pyrogram_app.start()
 
 
 @fastapi_app.on_event("shutdown")
 async def shutdown_event():
+    log.info('Application shutdown')
     await pyrogram_app.stop()
 
 

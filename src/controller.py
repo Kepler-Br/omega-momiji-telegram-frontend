@@ -32,7 +32,7 @@ class Controller:
             sent_message = await self.pyrogram_client.send_message(
                 chat_id=int(request.chat_id),
                 text=request.text,
-                reply_to_message_id=int(request.reply_to)
+                reply_to_message_id=int(request.reply_to) if request.reply_to is not None else None
             )
             return JSONResponse(
                 status_code=status.HTTP_200_OK,
@@ -51,4 +51,3 @@ class Controller:
                     error_message=f'{str(e)}'
                 )
             )
-
