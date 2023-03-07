@@ -1,3 +1,4 @@
+import asyncio
 import dataclasses
 import logging
 
@@ -46,3 +47,8 @@ async def test_send(gateway_address: str, frontend_name: str = 'telegram'):
                 f'Exception raised while sending new message to gateway "{gateway_address}":'
             )
             log.error(e, exc_info=True)
+
+
+asyncio.run(
+    test_send('http://localhost:8080', 'telegram')
+)

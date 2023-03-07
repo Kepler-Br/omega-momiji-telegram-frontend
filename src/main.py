@@ -78,7 +78,7 @@ async def shutdown_event():
     await pyrogram_app.stop()
 
 
-@pyrogram_app.on_message
+@pyrogram_app.on_message()
 async def new_frontend_message(client, pyrogram_message: Message):
     author = NewMessageAuthor(
         id=str(pyrogram_message.from_user.id),
