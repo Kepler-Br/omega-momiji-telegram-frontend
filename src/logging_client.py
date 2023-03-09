@@ -1,17 +1,62 @@
+import dataclasses
 import logging
 from datetime import datetime
 from typing import Union, List, Optional
 
+import aiohttp
 import pyrogram
 from pyrogram import Client, types, enums
+from pyrogram.enums import MessageServiceType
 from pyrogram.session import Session
 from pyrogram.types import Message as PyrogramMessage
+
+from new_message_request import NewMessageUser, NewMessageChat, ChatType, NewMessageRequest, MessageType, ActionType, \
+    NewMessageActionInfo
+from pyrogram_utils import get_fullname
+
+
+def get_action_related_user(value: PyrogramMessage) -> NewMessageUser:
+    if value.left_chat_member is not None:
+        return NewMessageUser(
+            id=str(value.left_chat_member.id),
+            username=value.left_chat_member.username,
+            fullname=get_fullname(value.left_chat_member),
+        )
+    elif value.new_chat_members is not None:
+        new_chat_member = value.new_chat_members[0]
+
+        return NewMessageUser(
+            id=str(new_chat_member.id),
+            username=new_chat_member.username,
+            fullname=get_fullname(new_chat_member),
+        )
+
+    raise RuntimeError("Unknown action type for related user")
+
+
+def get_action_type(value: PyrogramMessage) -> str:
+    if value.service == MessageServiceType.NEW_CHAT_MEMBERS:
+        return ActionType.NEW_MEMBER
+    elif value.service == MessageServiceType.LEFT_CHAT_MEMBERS:
+        return ActionType.MEMBER_LEFT
+    else:
+        return ActionType.OTHER
+
+
+def get_message_type(value: PyrogramMessage) -> str:
+    if value.service == MessageServiceType.LEFT_CHAT_MEMBERS or value.service == MessageServiceType.NEW_CHAT_MEMBERS:
+        return MessageType.ACTION
+    if value.service is not None:
+        return MessageType.OTHER
+    return MessageType.MESSAGE
 
 
 class LoggingClient(Client):
     def __init__(
             self,
             name: str,
+            message_gateway_addresses: list[str],
+            frontend_name: str,
             api_id: Union[int, str] = None,
             api_hash: str = None,
             app_version: str = Client.APP_VERSION,
@@ -64,37 +109,91 @@ class LoggingClient(Client):
         )
         self.log = logging.getLogger(f'{__name__}.{self.__class__.__name__}')
 
-        async def func(client, pyrogram_message: PyrogramMessage):
-            result = f'Incoming message: {pyrogram_message.id}\n'
-            # Chat info
-            if pyrogram_message.chat.title is not None:
-                result += f'From chat: {pyrogram_message.chat.title} ({pyrogram_message.chat.id})\n'
-            else:
-                fullname = pyrogram_message.chat.first_name + pyrogram_message.chat.last_name if pyrogram_message.chat.last_name else ''
-                result += f'From chat: @{pyrogram_message.chat.username} "{fullname}" ({pyrogram_message.chat.id})\n'
+        self._message_gateway_addresses = message_gateway_addresses
+        self._frontend_name = frontend_name
 
-            # User info
-            result += f'From user: @{pyrogram_message.from_user.username} "{pyrogram_message.from_user.first_name} {pyrogram_message.from_user.last_name}" ({pyrogram_message.from_user.id})\n'
+        self.add_handler(pyrogram.handlers.MessageHandler(self._gateway_log_handler, filters=None), group=-999)
+        self.add_handler(pyrogram.handlers.MessageHandler(self._log_handler, filters=None), group=-998)
 
-            # Media
-            if pyrogram_message.media is not None:
-                result += f'Media: {pyrogram_message.media.name}\n'
+    async def _log_handler(self, client, pyrogram_message: PyrogramMessage):
+        result = f'Incoming message: {pyrogram_message.id}\n'
+        # Chat info
+        if pyrogram_message.chat.title is not None:
+            result += f'From chat: {pyrogram_message.chat.title} ({pyrogram_message.chat.id})\n'
+        else:
+            fullname = pyrogram_message.chat.first_name + pyrogram_message.chat.last_name if pyrogram_message.chat.last_name else ''
+            result += f'From chat: @{pyrogram_message.chat.username} "{fullname}" ({pyrogram_message.chat.id})\n'
 
-            # Service
-            if pyrogram_message.service is not None:
-                result += f'Service: {pyrogram_message.service.name}\n'
+        # User info
+        result += f'From user: @{pyrogram_message.from_user.username} "{pyrogram_message.from_user.first_name} {pyrogram_message.from_user.last_name}" ({pyrogram_message.from_user.id})\n'
 
-            # Text
-            if pyrogram_message.text is not None:
-                result += f'Text: {pyrogram_message.text}\n'
+        # Media
+        if pyrogram_message.media is not None:
+            result += f'Media: {pyrogram_message.media.name}\n'
 
-            # Caption
-            if pyrogram_message.caption is not None:
-                result += f'Caption: {pyrogram_message.caption}\n'
+        # Service
+        if pyrogram_message.service is not None:
+            result += f'Service: {pyrogram_message.service.name}\n'
 
-            self.log.info(result.strip())
+        # Text
+        if pyrogram_message.text is not None:
+            result += f'Text: {pyrogram_message.text}\n'
 
-        self.add_handler(pyrogram.handlers.MessageHandler(func, filters=None), group=-999)
+        # Caption
+        if pyrogram_message.caption is not None:
+            result += f'Caption: {pyrogram_message.caption}\n'
+
+        self.log.info(result.strip())
+
+    async def _gateway_log_handler(self, client, pyrogram_message: PyrogramMessage):
+        author = NewMessageUser(
+            id=str(pyrogram_message.from_user.id),
+            username=pyrogram_message.from_user.username,
+            fullname=get_fullname(pyrogram_message.from_user),
+        )
+        chat = NewMessageChat(
+            id=str(pyrogram_message.id),
+            title=pyrogram_message.chat.title,
+            type=ChatType.GROUP if pyrogram_message.chat.id < 0 else ChatType.PRIVATE,
+        )
+        message_type = get_message_type(pyrogram_message)
+        action_info = None
+        if message_type == MessageType.ACTION:
+            action_info = NewMessageActionInfo(
+                action_type=get_action_type(pyrogram_message),
+                related_user=get_action_related_user(pyrogram_message),
+            )
+        message = NewMessageRequest(
+            id=str(pyrogram_message.id),
+            author=author,
+            chat=chat,
+            frontend=self._frontend_name,
+            text=pyrogram_message.text,
+            type=message_type,
+            action_info=action_info
+        )
+
+        for gateway_address in self._message_gateway_addresses:
+            async with aiohttp.ClientSession() as session:
+                try:
+                    response = await session.put(
+                        f'{gateway_address}/inbound/messages',
+                        json=dataclasses.asdict(message)
+                    )
+
+                    status = response.status
+                    if status != 200:
+                        self.log.error(
+                            f'Unexpected answer from gateway "{gateway_address}"\n'
+                            f'Status: {status}\n'
+                            f'Body:{await response.text()}')
+                except RuntimeError as e:
+                    self.log.error(
+                        f'Exception raised while sending new message to gateway "{gateway_address}":'
+                    )
+                    self.log.error(e, exc_info=True)
+                finally:
+                    await session.close()
 
     async def send_message(
             self: pyrogram.Client,

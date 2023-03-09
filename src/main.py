@@ -1,19 +1,15 @@
-import dataclasses
 import logging.config
 import os
 import sys
 
-import aiohttp
 import pydantic
 import yaml
 from fastapi import FastAPI
 from pydantic import BaseModel, Field
-from pyrogram.types import Message
 
 from controller import Controller
 from logging_client import LoggingClient
-from new_message_request import NewMessageAuthor, NewMessageChat, ChatType, NewMessageRequest
-from pyrogram_utils import get_fullname
+
 
 
 class ProgramArguments(BaseModel):
@@ -60,7 +56,9 @@ pyrogram_app: LoggingClient = LoggingClient(
     name='omega_momiji',
     bot_token=arguments.bot_token,
     api_hash=arguments.api_hash,
-    api_id=arguments.api_id
+    api_id=arguments.api_id,
+    message_gateway_addresses=arguments.message_gateway_addresses,
+    frontend_name=arguments.frontend_name,
 )
 
 fastapi_app = FastAPI()
@@ -76,48 +74,6 @@ async def startup_event():
 async def shutdown_event():
     log.info('Application shutdown')
     await pyrogram_app.stop()
-
-
-@pyrogram_app.on_message()
-async def new_frontend_message(client, pyrogram_message: Message):
-    author = NewMessageAuthor(
-        id=str(pyrogram_message.from_user.id),
-        username=pyrogram_message.from_user.username,
-        fullname=get_fullname(pyrogram_message.from_user),
-    )
-    chat = NewMessageChat(
-        id=str(pyrogram_message.id),
-        title=pyrogram_message.chat.title,
-        type=ChatType.GROUP if pyrogram_message.chat.id < 0 else ChatType.PRIVATE,
-    )
-    message = NewMessageRequest(
-        id=str(pyrogram_message.id),
-        author=author,
-        chat=chat,
-        frontend=arguments.frontend_name,
-        text=pyrogram_message.text,
-    )
-
-    for gateway_address in arguments.message_gateway_addresses:
-        async with aiohttp.ClientSession() as session:
-            try:
-                response = await session.post(
-                    f'{gateway_address}/inbound/messages',
-                    json=dataclasses.asdict(message)
-                )
-
-                status = response.status
-                if status != 200:
-                    log.error(
-                        f'Unexpected answer from gateway "{gateway_address}"\n'
-                        f'Status: {status}\n'
-                        f'Body:{await response.text()}')
-                await session.close()
-            except RuntimeError as e:
-                log.error(
-                    f'Exception raised while sending new message to gateway "{gateway_address}":'
-                )
-                log.error(e, exc_info=True)
 
 
 controller = Controller(pyrogram_client=pyrogram_app)

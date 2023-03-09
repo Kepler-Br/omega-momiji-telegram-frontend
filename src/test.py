@@ -4,13 +4,13 @@ import logging
 
 import aiohttp
 
-from new_message_request import NewMessageAuthor, NewMessageChat, NewMessageRequest, ChatType
+from new_message_request import NewMessageUser, NewMessageChat, NewMessageRequest, ChatType
 
 
 async def test_send(gateway_address: str, frontend_name: str = 'telegram'):
     log = logging.getLogger(f'{__name__}.test_send')
 
-    author = NewMessageAuthor(
+    author = NewMessageUser(
         id='NewMessageAuthor',
         username='username',
         fullname='fullname',
