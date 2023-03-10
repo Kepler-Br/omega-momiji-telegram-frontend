@@ -6,10 +6,10 @@ import pydantic
 import yaml
 from fastapi import FastAPI
 from pydantic import BaseModel, Field
+from pyrogram import Client
 
 from controller import Controller
-from logging_client import LoggingClient
-
+from handlers import register_gateway_handler, register_logging_handler
 
 
 class ProgramArguments(BaseModel):
@@ -52,13 +52,21 @@ logging.config.dictConfig(conf)
 
 log = logging.getLogger(f'{__name__}.main')
 
-pyrogram_app: LoggingClient = LoggingClient(
+pyrogram_app: Client = Client(
     name='omega_momiji',
     bot_token=arguments.bot_token,
     api_hash=arguments.api_hash,
     api_id=arguments.api_id,
+)
+
+register_gateway_handler(
+    client=pyrogram_app,
     message_gateway_addresses=arguments.message_gateway_addresses,
-    frontend_name=arguments.frontend_name,
+    frontend_name=arguments.frontend_name
+)
+
+register_logging_handler(
+    client=pyrogram_app
 )
 
 fastapi_app = FastAPI()
