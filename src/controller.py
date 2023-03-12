@@ -16,7 +16,7 @@ class SendMessageRequest(BaseModel):
 
 class SendMessageResponse(BaseModel):
     error_message: Optional[str] = Field(None)
-    messageId: Optional[str] = Field(None)
+    message_id: Optional[str] = Field(None)
 
 
 class Controller:
@@ -25,7 +25,7 @@ class Controller:
         self.pyrogram_client = pyrogram_client
         self.router = APIRouter()
 
-        self.router.add_api_route('/messages', self.send_message, methods=['POST'])
+        self.router.add_api_route('/text-messages', self.send_message, methods=['POST'])
 
     async def send_message(self, request: SendMessageRequest) -> Response:
         try:
@@ -37,7 +37,7 @@ class Controller:
             return JSONResponse(
                 status_code=status.HTTP_200_OK,
                 content=SendMessageResponse(
-                    messageId=str(sent_message.id)
+                    message_id=str(sent_message.id)
                 )
             )
         except RuntimeError as e:
