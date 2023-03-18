@@ -9,6 +9,16 @@ class NewMessageUser:
     fullname: str
 
 
+class MediaType:
+    STICKER = 'STICKER'
+    AUDIO = 'AUDIO'
+    VOICE = 'VOICE'
+    PHOTO = 'PHOTO'
+    VIDEO = 'VIDEO'
+    GIF = 'GIF'
+    VIDEO_NOTE = 'VIDEO_NOTE'
+
+
 class ChatType:
     GROUP = 'GROUP'
     PRIVATE = 'PRIVATE'
@@ -48,3 +58,5 @@ class NewMessageRequest:
     type: str
     text: Optional[str] = None
     action_info: Optional[NewMessageActionInfo] = None
+    media_type: Optional[MediaType] = None
+    media_bytes: Optional[str] = None

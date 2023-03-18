@@ -1,14 +1,15 @@
 import dataclasses
 import logging
-from typing import Optional
 
 import aiohttp
 import pyrogram
+from aiohttp import ClientError
 from pyrogram import Client
 from pyrogram.types import Message as PyrogramMessage, User, Chat
 
-from new_message_request import NewMessageUser, NewMessageChat, NewMessageRequest, MessageType, NewMessageActionInfo
-from pyrogram_utils import get_fullname, get_message_type, get_action_type, get_action_related_user, get_chat_type
+from new_message_request import NewMessageUser, NewMessageChat, NewMessageRequest
+from pyrogram_utils import get_fullname, get_message_type, get_chat_type, \
+    get_action_info, get_media_type
 
 
 def pyrogram_user_to_dto_user(value: User) -> NewMessageUser:
@@ -27,22 +28,6 @@ def pyrogram_chat_to_dto_chat(value: Chat) -> NewMessageChat:
     )
 
 
-def get_action_info(value: PyrogramMessage) -> Optional[NewMessageActionInfo]:
-    """
-    Will return null if message is not an action
-    :param value: pyrogram message instance
-    """
-
-    message_type = get_message_type(value)
-
-    if message_type == MessageType.ACTION:
-        return NewMessageActionInfo(
-            action_type=get_action_type(value),
-            related_user=get_action_related_user(value),
-        )
-    return None
-
-
 def register_gateway_handler(
         client: Client,
         message_gateway_addresses: list[str],
@@ -56,6 +41,7 @@ def register_gateway_handler(
         chat = pyrogram_chat_to_dto_chat(pyrogram_message.chat)
         message_type = get_message_type(pyrogram_message)
         action_info = get_action_info(pyrogram_message)
+        media_type = get_media_type(pyrogram_message)
 
         message = NewMessageRequest(
             id=str(pyrogram_message.id),
@@ -64,7 +50,8 @@ def register_gateway_handler(
             frontend=frontend_name,
             text=pyrogram_message.text,
             type=message_type,
-            action_info=action_info
+            action_info=action_info,
+            media_type=media_type,
         )
 
         for gateway_address in message_gateway_addresses:
@@ -83,6 +70,9 @@ def register_gateway_handler(
                             f'Body:{await response.text()}')
                 except RuntimeError as e:
                     # TODO: RuntimeError not caught
+                    log.error(f'Exception raised while sending new message to gateway "{gateway_address}":')
+                    log.error(e, exc_info=True)
+                except ClientError as e:
                     log.error(f'Exception raised while sending new message to gateway "{gateway_address}":')
                     log.error(e, exc_info=True)
                 finally:

@@ -1,10 +1,10 @@
 from typing import Optional
 
 from pyrogram import types
-from pyrogram.enums import MessageServiceType
+from pyrogram.enums import MessageServiceType, MessageMediaType
 from pyrogram.types import Message as PyrogramMessage, Chat
 
-from new_message_request import NewMessageUser, ChatType, MessageType, ActionType
+from new_message_request import NewMessageUser, ChatType, MessageType, ActionType, NewMessageActionInfo, MediaType
 
 
 def get_fullname(user: types.User) -> Optional[str]:
@@ -58,3 +58,43 @@ def get_message_type(value: PyrogramMessage) -> str:
     if value.service is not None:
         return MessageType.OTHER
     return MessageType.MESSAGE
+
+
+def get_action_info(value: PyrogramMessage) -> Optional[NewMessageActionInfo]:
+    """
+    Will return null if message is not an action
+    :param value: pyrogram message instance
+    """
+
+    message_type = get_message_type(value)
+
+    if message_type == MessageType.ACTION:
+        return NewMessageActionInfo(
+            action_type=get_action_type(value),
+            related_user=get_action_related_user(value),
+        )
+    return None
+
+
+def get_media_type(value: PyrogramMessage) -> Optional[MediaType]:
+    """
+    Will return null if message has no media in it
+    :param value: pyrogram message instance
+    """
+
+    if value.media == MessageMediaType.ANIMATION:
+        return MediaType.GIF
+    if value.media == MessageMediaType.VIDEO:
+        return MediaType.VIDEO
+    if value.media == MessageMediaType.VOICE:
+        return MediaType.VOICE
+    if value.media == MessageMediaType.VIDEO_NOTE:
+        return MediaType.VIDEO_NOTE
+    if value.media == MessageMediaType.AUDIO:
+        return MediaType.AUDIO
+    if value.media == MessageMediaType.PHOTO:
+        return MediaType.PHOTO
+    if value.media == MessageMediaType.STICKER:
+        return MediaType.STICKER
+
+    return None
