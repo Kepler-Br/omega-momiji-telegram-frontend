@@ -56,6 +56,7 @@ class NewMessageRequest:
     chat: NewMessageChat
     frontend: str
     type: str
+    reply_to: Optional[str] = None
     text: Optional[str] = None
     action_info: Optional[NewMessageActionInfo] = None
     media_type: Optional[MediaType] = None
