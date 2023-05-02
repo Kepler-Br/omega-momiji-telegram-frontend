@@ -50,7 +50,8 @@ def register_gateway_handler(
             frontend=frontend_name,
             text=pyrogram_message.text,
             type=message_type,
-            reply_to=str(pyrogram_message.reply_to_message_id),
+            reply_to=
+            str(pyrogram_message.reply_to_message_id) if pyrogram_message.reply_to_message_id is not None else None,
             action_info=action_info,
             media_type=media_type,
         )

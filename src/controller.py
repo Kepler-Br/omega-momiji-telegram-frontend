@@ -114,6 +114,7 @@ class Controller:
             return JSONResponse(
                 status_code=status.HTTP_200_OK,
                 content=SendMessageResponse(
+                    status=ResponseStatus.OK,
                     message_id=str(sent_message.id)
                 ).dict(exclude_none=True)
             )
@@ -125,6 +126,7 @@ class Controller:
             return JSONResponse(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 content=SendMessageResponse(
+                    status=ResponseStatus.OK,
                     error_message=f'{str(e)}'
                 ).dict(exclude_none=True)
             )
