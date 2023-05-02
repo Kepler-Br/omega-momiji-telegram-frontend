@@ -1,20 +1,22 @@
 import logging
+from enum import Enum
 from typing import Optional
 
-from fastapi import APIRouter
-from fastapi.responses import JSONResponse, Response
+from fastapi import APIRouter, Path
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
-from pyrogram import Client as PyrogramClient
+from pyrogram import Client as PyrogramClient, enums
 from pyrogram.enums import ChatAction
 from starlette import status
 
 
-class ResponseStatus:
-    OK = 'OK'
-    TOO_EARLY = 'TOO_EARLY'
-    BAD_REQUEST = 'BAD_REQUEST'
-    INTERNAL_SERVER_ERROR = 'INTERNAL_SERVER_ERROR'
-    NOT_FOUND = 'NOT_FOUND'
+class ResponseStatus(str, Enum):
+    OK: str = 'OK'
+    NOT_READY: str = 'NOT_READY'
+    BAD_REQUEST: str = 'BAD_REQUEST'
+    INTERNAL_SERVER_ERROR: str = 'INTERNAL_SERVER_ERROR'
+    TOO_MANY_REQUESTS: str = 'TOO_MANY_REQUESTS'
+    NOT_FOUND: str = 'NOT_FOUND'
 
 
 class SendMessageRequest(BaseModel):
@@ -23,14 +25,26 @@ class SendMessageRequest(BaseModel):
     chat_id: str = Field(min_length=1)
 
 
-class SendMessageResponse(BaseModel):
-    error_message: Optional[str] = Field(None)
-    message_id: Optional[str] = Field(None)
-
-
 class BasicResponse(BaseModel):
     error_message: Optional[str] = Field(None)
-    status: str = Field()
+    status: ResponseStatus = Field(None)
+
+    class Config:
+        use_enum_values = True
+
+
+class SendMessageResponse(BasicResponse):
+    message_id: Optional[str] = Field(None)
+
+    class Config:
+        use_enum_values = True
+
+
+class ChatAdminsResponse(BasicResponse):
+    admin_ids: Optional[list] = Field(None)
+
+    class Config:
+        use_enum_values = True
 
 
 class Controller:
@@ -40,9 +54,10 @@ class Controller:
         self.router = APIRouter()
 
         self.router.add_api_route('/text-messages', self.send_message, methods=['POST'])
-        self.router.add_api_route('/actions/typing', self.send_typing_action, methods=['POST'])
+        self.router.add_api_route('/chats/{chat_id}/actions/typing', self.send_typing_action, methods=['POST'])
+        self.router.add_api_route('/chats/{chat_id}/admins', self.get_admins, methods=['GET'])
 
-    async def send_typing_action(self, chat_id: str) -> Response:
+    async def send_typing_action(self, chat_id: str = Path()) -> JSONResponse:
         try:
             await self.pyrogram_client.send_chat_action(chat_id, ChatAction.TYPING)
 
@@ -63,7 +78,32 @@ class Controller:
                 ).dict(exclude_none=True)
             )
 
-    async def send_message(self, request: SendMessageRequest) -> Response:
+    async def get_admins(self, chat_id: str = Path()) -> JSONResponse:
+        try:
+            admins = self.pyrogram_client.get_chat_members(chat_id=chat_id,
+                                                           filter=enums.ChatMembersFilter.ADMINISTRATORS)
+            admin_ids = set()
+            async for admin in admins:
+                admin_ids.add(str(admin.user.id))
+            return JSONResponse(
+                status_code=status.HTTP_200_OK,
+                content=ChatAdminsResponse(
+                    status=ResponseStatus.OK,
+                    admin_ids=list(admin_ids),
+                ).dict(exclude_none=True)
+            )
+        except RuntimeError as e:
+            self.log.error(e, exc_info=True)
+
+            return JSONResponse(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                content=BasicResponse(
+                    status=ResponseStatus.INTERNAL_SERVER_ERROR,
+                    error_message=f'{e.__class__.__name__}: {e}'
+                ).dict(exclude_none=True)
+            )
+
+    async def send_message(self, request: SendMessageRequest) -> JSONResponse:
         try:
             sent_message = await self.pyrogram_client.send_message(
                 chat_id=int(request.chat_id),
