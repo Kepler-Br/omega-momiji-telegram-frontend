@@ -1,15 +1,16 @@
+# TODO: Fix logging. Can't set DEBUG level
 import logging.config
 import os
 import sys
 
-import pydantic
-import yaml
+from controller import Controller
 from fastapi import FastAPI
+from handlers import register_logging_handler, register_prometheus_handler
+from prometheus_client import make_asgi_app
 from pydantic import BaseModel, Field
 from pyrogram import Client
-
-from controller import Controller
-from handlers import register_gateway_handler, register_logging_handler
+import pydantic
+import yaml
 
 
 class ProgramArguments(BaseModel):
@@ -21,7 +22,7 @@ class ProgramArguments(BaseModel):
     frontend_name: str = Field(alias='SERVER_FRONTEND_NAME', min_length=1)
 
     class Config:
-        allow_population_by_field_name = True
+        validate_by_name = True
 
 
 def parse_arguments() -> ProgramArguments:
@@ -53,23 +54,32 @@ logging.config.dictConfig(conf)
 log = logging.getLogger(f'{__name__}.main')
 
 pyrogram_app: Client = Client(
-    name='omega_momiji',
+    name='OmegaMomiji',
     bot_token=arguments.bot_token,
     api_hash=arguments.api_hash,
     api_id=arguments.api_id,
 )
 
-register_gateway_handler(
-    client=pyrogram_app,
-    message_gateway_addresses=arguments.message_gateway_addresses,
-    frontend_name=arguments.frontend_name
-)
-
-register_logging_handler(
-    client=pyrogram_app
-)
+# register_gateway_handler(
+#     client=pyrogram_app,
+#     message_gateway_addresses=arguments.message_gateway_addresses,
+#     frontend_name=arguments.frontend_name
+# )
+register_logging_handler(client=pyrogram_app)
+register_prometheus_handler(client=pyrogram_app)
 
 fastapi_app = FastAPI()
+
+metrics_app = make_asgi_app()
+fastapi_app.mount("/metrics", metrics_app)
+
+
+def get_openapi():
+    with open("static/frontend-contract.yaml", "r") as openapi:
+        return yaml.load(openapi, Loader=yaml.FullLoader)
+
+
+fastapi_app.openapi = get_openapi
 
 
 @fastapi_app.on_event("startup")

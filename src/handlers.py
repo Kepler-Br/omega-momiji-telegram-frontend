@@ -5,11 +5,26 @@ import aiohttp
 import pyrogram
 from aiohttp import ClientError
 from pyrogram import Client
+from pyrogram.enums import ChatType
 from pyrogram.types import Message as PyrogramMessage, User, Chat
 
 from new_message_request import NewMessageUser, NewMessageChat, NewMessageRequest
 from pyrogram_utils import get_fullname, get_message_type, get_chat_type, \
     get_action_info, get_media_type
+from src.prometheus_metrics import prometheus_pyrogram_messages, prometheus_pyrogram_messages_media, \
+    prometheus_pyrogram_messages_service, prometheus_pyrogram_messages_text, prometheus_pyrogram_messages_caption, \
+    prometheus_pyrogram_messages_document, prometheus_pyrogram_messages_forwards, \
+    prometheus_pyrogram_messages_group_chat_created, prometheus_pyrogram_messages_left_chat_members, \
+    prometheus_pyrogram_messages_location, prometheus_pyrogram_messages_new_chat_members, \
+    prometheus_pyrogram_messages_new_chat_photo, prometheus_pyrogram_messages_new_chat_title, \
+    prometheus_pyrogram_messages_photo, prometheus_pyrogram_messages_pinned_message, prometheus_pyrogram_messages_poll, \
+    prometheus_pyrogram_messages_reactions, prometheus_pyrogram_messages_sticker, \
+    prometheus_pyrogram_messages_supergroup_chat_created, prometheus_pyrogram_messages_video_chat_ended, \
+    prometheus_pyrogram_messages_video_chat_started, prometheus_pyrogram_messages_video, \
+    prometheus_pyrogram_messages_video_note, prometheus_pyrogram_messages_voice, \
+    prometheus_pyrogram_known_private_chats, prometheus_pyrogram_known_group_chats, \
+    prometheus_pyrogram_known_supergroup_chats, prometheus_pyrogram_known_channel_chats, \
+    prometheus_pyrogram_known_bot_chats, prometheus_pyrogram_known_unknown_chats
 
 
 def pyrogram_user_to_dto_user(value: User) -> NewMessageUser:
@@ -80,6 +95,84 @@ def register_gateway_handler(
                     await session.close()
 
     client.add_handler(pyrogram.handlers.MessageHandler(__gateway_logging_handler, filters=None), group=group)
+
+
+def register_prometheus_handler(client: Client, group: int = -458155):
+    known_private_chats: set[int] = set()
+    known_group_chats: set[int] = set()
+    known_supergroup_chats: set[int] = set()
+    known_bot_chats: set[int] = set()
+    known_channel_chats: set[int] = set()
+    known_unknown_chats: set[int] = set()
+    async def __prometheus_handler(_: Client, pyrogram_message: PyrogramMessage):
+        prometheus_pyrogram_messages.inc()
+        if pyrogram_message.chat.type == ChatType.PRIVATE:
+            known_private_chats.add(pyrogram_message.chat.id)
+            prometheus_pyrogram_known_private_chats.set(len(known_private_chats))
+        elif pyrogram_message.chat.type == ChatType.GROUP:
+            known_group_chats.add(pyrogram_message.chat.id)
+            prometheus_pyrogram_known_group_chats.set(len(known_group_chats))
+        elif pyrogram_message.chat.type == ChatType.SUPERGROUP:
+            known_supergroup_chats.add(pyrogram_message.chat.id)
+            prometheus_pyrogram_known_supergroup_chats.set(len(known_supergroup_chats))
+        elif pyrogram_message.chat.type == ChatType.CHANNEL:
+            known_channel_chats.add(pyrogram_message.chat.id)
+            prometheus_pyrogram_known_channel_chats.set(len(known_channel_chats))
+        elif pyrogram_message.chat.type == ChatType.BOT:
+            known_bot_chats.add(pyrogram_message.chat.id)
+            prometheus_pyrogram_known_bot_chats.set(len(known_bot_chats))
+        else:
+            known_unknown_chats.add(pyrogram_message.chat.id)
+            prometheus_pyrogram_known_unknown_chats.set(len(known_unknown_chats))
+
+        if pyrogram_message.caption is not None:
+            prometheus_pyrogram_messages_caption.inc()
+        if pyrogram_message.document is not None:
+            prometheus_pyrogram_messages_document.inc()
+        if pyrogram_message.forwards is not None:
+            prometheus_pyrogram_messages_forwards.inc()
+        if pyrogram_message.group_chat_created is not None:
+            prometheus_pyrogram_messages_group_chat_created.inc()
+        if pyrogram_message.left_chat_member is not None:
+            prometheus_pyrogram_messages_left_chat_members.inc()
+        if pyrogram_message.location is not None:
+            prometheus_pyrogram_messages_location.inc()
+        if pyrogram_message.media is not None:
+            prometheus_pyrogram_messages_media.inc()
+        if pyrogram_message.new_chat_members is not None:
+            prometheus_pyrogram_messages_new_chat_members.inc()
+        if pyrogram_message.new_chat_photo is not None:
+            prometheus_pyrogram_messages_new_chat_photo.inc()
+        if pyrogram_message.new_chat_title is not None:
+            prometheus_pyrogram_messages_new_chat_title.inc()
+        if pyrogram_message.photo is not None:
+            prometheus_pyrogram_messages_photo.inc()
+        if pyrogram_message.pinned_message is not None:
+            prometheus_pyrogram_messages_pinned_message.inc()
+        if pyrogram_message.poll is not None:
+            prometheus_pyrogram_messages_poll.inc()
+        if pyrogram_message.reactions is not None:
+            prometheus_pyrogram_messages_reactions.inc()
+        if pyrogram_message.service is not None:
+            prometheus_pyrogram_messages_service.inc()
+        if pyrogram_message.sticker is not None:
+            prometheus_pyrogram_messages_sticker.inc()
+        if pyrogram_message.supergroup_chat_created is not None:
+            prometheus_pyrogram_messages_supergroup_chat_created.inc()
+        if pyrogram_message.text is not None:
+            prometheus_pyrogram_messages_text.inc()
+        if pyrogram_message.video_chat_ended is not None:
+            prometheus_pyrogram_messages_video_chat_ended.inc()
+        if pyrogram_message.video_chat_started is not None:
+            prometheus_pyrogram_messages_video_chat_started.inc()
+        if pyrogram_message.video is not None:
+            prometheus_pyrogram_messages_video.inc()
+        if pyrogram_message.video_note is not None:
+            prometheus_pyrogram_messages_video_note.inc()
+        if pyrogram_message.voice is not None:
+            prometheus_pyrogram_messages_voice.inc()
+
+    client.add_handler(pyrogram.handlers.MessageHandler(__prometheus_handler, filters=None), group=group)
 
 
 def register_logging_handler(client: Client, group: int = -458156):
