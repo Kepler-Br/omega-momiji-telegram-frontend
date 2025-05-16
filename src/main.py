@@ -5,7 +5,6 @@
 #       * Whitelist
 #       * Config file
 #       * Media size limit
-#       * Rename metrics to be more generalized
 import logging.config
 import os
 import sys

@@ -1,7 +1,6 @@
 import os
 import sys
 from io import BytesIO
-from typing import BinaryIO
 
 import uvicorn
 from minio import Minio
