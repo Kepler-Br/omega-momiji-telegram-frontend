@@ -33,3 +33,6 @@ prometheus_pyrogram_known_group_chats = Gauge('pyrogram_known_group_chats', 'Tot
 prometheus_pyrogram_known_private_chats = Gauge('pyrogram_known_private_chats', 'Total number of known private type chats')
 prometheus_pyrogram_known_supergroup_chats = Gauge('pyrogram_known_supergroup_chats', 'Total number of known supergroup type chats')
 prometheus_pyrogram_known_unknown_chats = Gauge('pyrogram_known_unknown_chats', 'Total number of known unknown type chats')
+
+# Users
+prometheus_pyrogram_known_users = Gauge('pyrogram_known_users', 'Total number of known users')

@@ -24,7 +24,7 @@ from src.prometheus_metrics import prometheus_pyrogram_messages, prometheus_pyro
     prometheus_pyrogram_messages_video_note, prometheus_pyrogram_messages_voice, \
     prometheus_pyrogram_known_private_chats, prometheus_pyrogram_known_group_chats, \
     prometheus_pyrogram_known_supergroup_chats, prometheus_pyrogram_known_channel_chats, \
-    prometheus_pyrogram_known_bot_chats, prometheus_pyrogram_known_unknown_chats
+    prometheus_pyrogram_known_bot_chats, prometheus_pyrogram_known_unknown_chats, prometheus_pyrogram_known_users
 
 
 def pyrogram_user_to_dto_user(value: User) -> NewMessageUser:
@@ -98,12 +98,17 @@ def register_gateway_handler(
 
 
 def register_prometheus_handler(client: Client, group: int = -458155):
+    log = logging.getLogger(f'{__name__}.register_prometheus_handler')
+
     known_private_chats: set[int] = set()
     known_group_chats: set[int] = set()
     known_supergroup_chats: set[int] = set()
     known_bot_chats: set[int] = set()
     known_channel_chats: set[int] = set()
     known_unknown_chats: set[int] = set()
+
+    known_users: set[int] = set()
+
     async def __prometheus_handler(_: Client, pyrogram_message: PyrogramMessage):
         prometheus_pyrogram_messages.inc()
         if pyrogram_message.chat.type == ChatType.PRIVATE:
@@ -124,6 +129,12 @@ def register_prometheus_handler(client: Client, group: int = -458155):
         else:
             known_unknown_chats.add(pyrogram_message.chat.id)
             prometheus_pyrogram_known_unknown_chats.set(len(known_unknown_chats))
+
+        if pyrogram_message.from_user is None:
+            log.error("pyrogram_message.from_user is not set")
+        elif pyrogram_message.from_user.id not in known_users:
+            known_users.add(pyrogram_message.from_user.id)
+            prometheus_pyrogram_known_users.set(len(known_users))
 
         if pyrogram_message.caption is not None:
             prometheus_pyrogram_messages_caption.inc()

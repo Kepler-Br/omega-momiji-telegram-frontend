@@ -1,4 +1,11 @@
 # TODO: Fix logging. Can't set DEBUG level
+# TODO: What needs to be done:
+#       * minio client
+#       * Kafka
+#       * Whitelist
+#       * Config file
+#       * Media size limit
+#       * Rename metrics to be more generalized
 import logging.config
 import os
 import sys
@@ -65,8 +72,8 @@ pyrogram_app: Client = Client(
 #     message_gateway_addresses=arguments.message_gateway_addresses,
 #     frontend_name=arguments.frontend_name
 # )
-register_logging_handler(client=pyrogram_app)
-register_prometheus_handler(client=pyrogram_app)
+register_logging_handler(client=pyrogram_app, group=-458155)
+register_prometheus_handler(client=pyrogram_app, group=-458156)
 
 fastapi_app = FastAPI()
 
@@ -80,6 +87,20 @@ def get_openapi():
 
 
 fastapi_app.openapi = get_openapi
+
+
+@fastapi_app.get('/readiness')
+async def readiness_probe():
+    return {
+        'readiness': True
+    }
+
+
+@fastapi_app.get('/liveness')
+async def readiness_probe():
+    return {
+        'liveness': True
+    }
 
 
 @fastapi_app.on_event("startup")
