@@ -1,7 +1,7 @@
 # TODO: Fix logging. Can't set DEBUG level
 # TODO: What needs to be done:
 #       * minio client
-#       * Kafka
+#       * Kafka; kafka producer one key per chat id
 #       * Whitelist
 #       * Config file
 #       * Media size limit
