@@ -5,18 +5,28 @@
 #       * Whitelist
 #       * Config file
 #       * Media size limit
+import asyncio
 import logging.config
 import os
 import sys
+from asyncio import AbstractEventLoop
+
+import pyrogram
+from confluent_kafka import Producer
+from miniopy_async import Minio
 
 from controller import Controller
 from fastapi import FastAPI
-from handlers import register_logging_handler, register_prometheus_handler
 from prometheus_client import make_asgi_app
 from pydantic import BaseModel, Field
 from pyrogram import Client
 import pydantic
 import yaml
+
+from src.handlers.kafka_handler import register_kafka_handler
+from src.handlers.logging_handler import register_logging_handler
+from src.handlers.prometheus_handler import register_prometheus_handler
+from concurrent.futures import ThreadPoolExecutor
 
 
 class ProgramArguments(BaseModel):
@@ -71,8 +81,7 @@ pyrogram_app: Client = Client(
 #     message_gateway_addresses=arguments.message_gateway_addresses,
 #     frontend_name=arguments.frontend_name
 # )
-register_logging_handler(client=pyrogram_app, group=-458155)
-register_prometheus_handler(client=pyrogram_app, group=-458156)
+
 
 fastapi_app = FastAPI()
 
@@ -106,6 +115,22 @@ async def readiness_probe():
 async def startup_event():
     log.info('Application startup')
     await pyrogram_app.start()
+    loop = asyncio.get_event_loop()
+
+    config = {
+        'bootstrap.servers': 'localhost:9092',
+    }
+    # TODO: logging handler kills process with code 3
+    # register_logging_handler(client=pyrogram_app, group=-458155)
+    register_prometheus_handler(client=pyrogram_app, group=-458156)
+    access_key = os.environ.get('MINIO_ACCESS_KEY')
+    secret_key = os.environ.get('MINIO_SECRET_KEY')
+    minio=Minio("localhost:8000",
+                   secure=False,
+                   access_key=access_key,
+                   secret_key=secret_key,
+                   )
+    register_kafka_handler(client=pyrogram_app, group=-458157, minio=minio, kafka_producer=Producer(config), event_loop=loop)
 
 
 @fastapi_app.on_event("shutdown")
