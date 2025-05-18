@@ -1,6 +1,8 @@
 import logging
+
+import pyrogram
 from pyrogram import Client
-from pyrogram.types import Message as PyrogramMessage, User, Chat
+from pyrogram.types import Message as PyrogramMessage
 
 
 def register_logging_handler(client: Client, group: int = -458156):

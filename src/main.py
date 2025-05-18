@@ -1,7 +1,6 @@
 # TODO: Fix logging. Can't set DEBUG level
 # TODO: What needs to be done:
 #       * minio client
-#       * Kafka; kafka producer one key per chat id
 #       * Whitelist
 #       * Config file
 #       * Media size limit
@@ -9,9 +8,7 @@ import asyncio
 import logging.config
 import os
 import sys
-from asyncio import AbstractEventLoop
 
-import pyrogram
 from confluent_kafka import Producer
 from miniopy_async import Minio
 
@@ -26,7 +23,6 @@ import yaml
 from src.handlers.kafka_handler import register_kafka_handler
 from src.handlers.logging_handler import register_logging_handler
 from src.handlers.prometheus_handler import register_prometheus_handler
-from concurrent.futures import ThreadPoolExecutor
 
 
 class ProgramArguments(BaseModel):
@@ -65,6 +61,7 @@ with open('logging.yaml') as fp:
 
 conf['root']['level'] = arguments.log_level
 
+logging.basicConfig()
 logging.config.dictConfig(conf)
 
 log = logging.getLogger(f'{__name__}.main')
@@ -120,17 +117,25 @@ async def startup_event():
     config = {
         'bootstrap.servers': 'localhost:9092',
     }
-    # TODO: logging handler kills process with code 3
-    # register_logging_handler(client=pyrogram_app, group=-458155)
+    register_logging_handler(client=pyrogram_app, group=-458155)
     register_prometheus_handler(client=pyrogram_app, group=-458156)
     access_key = os.environ.get('MINIO_ACCESS_KEY')
     secret_key = os.environ.get('MINIO_SECRET_KEY')
-    minio=Minio("localhost:8000",
-                   secure=False,
-                   access_key=access_key,
-                   secret_key=secret_key,
-                   )
-    register_kafka_handler(client=pyrogram_app, group=-458157, minio=minio, kafka_producer=Producer(config), event_loop=loop)
+    minio = Minio("localhost:8000",
+                  secure=False,
+                  access_key=access_key,
+                  secret_key=secret_key,
+                  )
+    register_kafka_handler(
+        client=pyrogram_app,
+        group=-458157,
+        minio=minio,
+        kafka_producer=Producer(config),
+        event_loop=loop,
+        frontend='TODO',
+        topic='frontends.messages.v1',
+        max_file_size=10000,
+    )
 
 
 @fastapi_app.on_event("shutdown")

@@ -1,0 +1,19 @@
+kafka:
+  bootstrap:
+    servers: localhost:9092
+  messages:
+    topic: frontends.messages.v1
+
+s3:
+  url: localhost:8000
+
+frontend:
+  name: telegram
+  max-file-size: 1Mb
+  upload-files: true
+  chat:
+    whitelist:
+      - -1
+
+logging:
+  level: debug

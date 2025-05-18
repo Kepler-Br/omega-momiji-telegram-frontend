@@ -1,6 +1,9 @@
+import dataclasses
+import json
 import logging
 from asyncio import AbstractEventLoop
 from typing import Optional
+from unittest import case
 
 import pyrogram
 from confluent_kafka import Producer
@@ -8,7 +11,29 @@ from miniopy_async import Minio
 from pyrogram import Client
 from pyrogram.types import Message as PyrogramMessage
 
-from src.new_message import User, Chat
+from src.new_message import User, Chat, ChatType, NewMessage, MediaType
+
+
+def pyrogram_mediatype_to_mediatype(value: Optional[pyrogram.enums.MessageMediaType]) -> Optional[MediaType]:
+    if value is None:
+        return None
+    match value:
+        case pyrogram.enums.MessageMediaType.STICKER:
+            return MediaType.STICKER
+        case pyrogram.enums.MessageMediaType.AUDIO:
+            return MediaType.AUDIO
+        case pyrogram.enums.MessageMediaType.VOICE:
+            return MediaType.VOICE
+        case pyrogram.enums.MessageMediaType.PHOTO:
+            return MediaType.PHOTO
+        case pyrogram.enums.MessageMediaType.VIDEO:
+            return MediaType.VIDEO
+        case pyrogram.enums.MessageMediaType.ANIMATION:
+            return MediaType.ANIMATION
+        case pyrogram.enums.MessageMediaType.VIDEO_NOTE:
+            return MediaType.VIDEO_NOTE
+        case _:
+            return MediaType.OTHER
 
 
 def pyrogram_user_to_user(value: Optional[pyrogram.types.User]) -> Optional[User]:
@@ -23,31 +48,91 @@ def pyrogram_user_to_user(value: Optional[pyrogram.types.User]) -> Optional[User
         is_bot=value.is_bot,
     )
 
+
 def pyrogram_chat_to_chat(value: Optional[pyrogram.types.Chat]) -> Optional[Chat]:
     if value is None:
         return None
 
+    chat_type: ChatType
+    match value.type:
+        case pyrogram.enums.ChatType.PRIVATE:
+            chat_type = ChatType.PRIVATE
+        case pyrogram.enums.ChatType.BOT:
+            chat_type = ChatType.PRIVATE
+        case pyrogram.enums.ChatType.GROUP:
+            chat_type = ChatType.GROUP
+        case pyrogram.enums.ChatType.SUPERGROUP:
+            chat_type = ChatType.GROUP
+        case pyrogram.enums.ChatType.CHANNEL:
+            chat_type = ChatType.GROUP
+        case _:
+            return None
+
+    chat_title: str
+    if chat_type == ChatType.PRIVATE:
+        if value.first_name is None and value.last_name is not None:
+            chat_title = value.last_name
+        elif value.first_name is not None and value.last_name is None:
+            chat_title = value.first_name
+        elif value.first_name is not None and value.last_name is not None:
+            chat_title = f'{value.first_name} {value.last_name}'
+        elif value.username is not None:
+            chat_title = value.username
+        elif value.title is not None:
+            chat_title = value.title
+        else:
+            chat_title = str(value.id)
+    else:
+        chat_title = value.title
+
     return Chat(
-    id=str(value.id),
-    title=value.title,
-    type=value.type, # TODO: convert to my enum
+        id=str(value.id),
+        title=chat_title,
+        type=chat_type
     )
+
 
 def register_kafka_handler(
         client: Client,
         group: int,
         minio: Minio,
         kafka_producer: Producer,
-        event_loop: AbstractEventLoop):
+        event_loop: AbstractEventLoop,
+        frontend: str,
+        topic: str,
+        max_file_size: int,
+):
     log = logging.getLogger(f'{__name__}.register_kafka_handler')
 
-    def produce(topic: str, value: str) -> None:
-        kafka_producer.produce(topic=topic, value=value)
+    def produce(topic: str, key: str, value: str) -> None:
+        kafka_producer.produce(topic=topic, key=key, value=value)
 
     async def __kafka_handler(_: Client, message: PyrogramMessage):
         user = pyrogram_user_to_user(message.from_user)
         forwarded_from = pyrogram_user_to_user(message.forward_from)
-        message.chat
-        await event_loop.run_in_executor(None, produce, "", "")
+        chat = pyrogram_chat_to_chat(message.chat)
+        kafka_message = NewMessage(
+            user=user,
+            chat=chat,
+            forward_from=forwarded_from,
+            frontend=frontend,
+            text=message.text,
+            reply_to_message_id=message.reply_to_message_id,
+            media_type=pyrogram_mediatype_to_mediatype(message.media),
+            s3_bucket=None,
+            s3_object=None,
+        )
+        # TODO: topic from config
+
+        try:
+            await event_loop.run_in_executor(
+                None,
+                produce,
+                topic,
+                kafka_message.chat.id,
+                json.dumps(dataclasses.asdict(kafka_message))
+            )
+        except Exception as e:
+            log.error(e)
 
     client.add_handler(pyrogram.handlers.MessageHandler(__kafka_handler, filters=None), group=group)

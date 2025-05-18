@@ -2,18 +2,19 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Optional
 
-class ChatType(Enum):
+class ChatType(str, Enum):
     PRIVATE = 'PRIVATE'
     GROUP = 'GROUP'
 
-class MediaType(Enum):
+class MediaType(str, Enum):
     STICKER = 'STICKER'
     AUDIO = 'AUDIO'
     VOICE = 'VOICE'
     PHOTO = 'PHOTO'
     VIDEO = 'VIDEO'
-    GIF = 'GIF'
+    ANIMATION = 'ANIMATION'
     VIDEO_NOTE = 'VIDEO_NOTE'
+    OTHER = 'OTHER'
 
 @dataclass
 class Chat:
