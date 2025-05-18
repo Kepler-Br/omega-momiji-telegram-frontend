@@ -16,43 +16,14 @@ from new_message_request import NewMessageRequest, NewMessageUser, NewMessageCha
 from src.tools import convert_string_size_to_bytes, get_dict_key_by_path
 
 
-class S3Config(BaseModel):
-    url: str = Field(min_length=1)
-
-    class Config:
-        validate_by_name = True
 
 
-class KafkaConfig(BaseModel):
-    bootstrap_servers: str = Field(min_length=1)
-    messages_topic: str = Field(min_length=1)
-
-
-class FrontendConfig(BaseModel):
-    name: str = Field(min_length=1)
-    max_file_size: int = Field()
-    upload_files: bool = Field(default=True)
-    whitelist: List[int] = Field()
 
 
 def main():
     with open('config.yaml') as fp:
         conf = yaml.load(fp, Loader=yaml.FullLoader)
-    s3_config = S3Config(url=get_dict_key_by_path(conf, 's3.url'))
-    kafka_config = KafkaConfig(
-        bootstrap_servers=get_dict_key_by_path(conf, 'kafka.bootstrap.servers'),
-        messages_topic=get_dict_key_by_path(conf, 'kafka.messages.topic'),
-    )
-    frontend_config = FrontendConfig(
-        name=get_dict_key_by_path(conf, 'frontend.name'),
-        max_file_size=convert_string_size_to_bytes(get_dict_key_by_path(conf, 'frontend.max-file-size')),
-        upload_files=get_dict_key_by_path(conf, 'frontend.upload-files', fail=False),
-        whitelist=get_dict_key_by_path(conf, 'frontend.chat.whitelist'),
-    )
 
-    print(s3_config)
-    print(kafka_config)
-    print(frontend_config)
     logging.basicConfig()
     log = logging.getLogger(f'{__name__}.main')
     # log.setLevel(logging.DEBUG)

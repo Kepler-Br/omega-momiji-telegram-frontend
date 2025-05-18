@@ -20,18 +20,19 @@ from pyrogram import Client
 import pydantic
 import yaml
 
+from src.config import get_configurations
 from src.handlers.kafka_handler import register_kafka_handler
 from src.handlers.logging_handler import register_logging_handler
 from src.handlers.prometheus_handler import register_prometheus_handler
 
 
 class ProgramArguments(BaseModel):
-    log_level: str = Field('INFO', alias='SERVER_LOG_LEVEL', min_length=1)
-    message_gateway_addresses: list[str] = Field(alias='SERVER_MESSAGE_GATEWAY_ADDRESSES', min_length=1)
-    bot_token: str = Field(alias='BOT_TOKEN', min_length=1)
-    api_hash: str = Field(alias='API_HASH', min_length=1)
-    api_id: str = Field(alias='API_ID', min_length=1)
-    frontend_name: str = Field(alias='SERVER_FRONTEND_NAME', min_length=1)
+    log_level: str = Field('INFO', min_length=1)
+    bot_token: str = Field(min_length=1)
+    api_hash: str = Field(min_length=1)
+    api_id: str = Field(min_length=1)
+    s3_access_key: str = Field(min_length=1)
+    s3_secret_key: str = Field(min_length=1)
 
     class Config:
         validate_by_name = True
@@ -39,14 +40,13 @@ class ProgramArguments(BaseModel):
 
 def parse_arguments() -> ProgramArguments:
     try:
-        gateway_address = os.environ.get('SERVER_MESSAGE_GATEWAY_ADDRESSES')
         return ProgramArguments(
             log_level=os.environ.get('SERVER_LOG_LEVEL', 'INFO'),
-            message_gateway_addresses=gateway_address.split(';') if gateway_address is not None else None,
             bot_token=os.environ.get('BOT_TOKEN'),
             api_hash=os.environ.get('API_HASH'),
             api_id=os.environ.get('API_ID'),
-            frontend_name=os.environ.get('SERVER_FRONTEND_NAME', 'telegram'),
+            s3_access_key=os.environ.get('S3_ACCESS_KEY'),
+            s3_secret_key=os.environ.get('S3_SECRET_KEY'),
         )
     except pydantic.error_wrappers.ValidationError as e:
         print(e)
@@ -55,14 +55,24 @@ def parse_arguments() -> ProgramArguments:
 
 arguments = parse_arguments()
 
-# Configure logging
-with open('logging.yaml') as fp:
+with open('config.yaml') as fp:
     conf = yaml.load(fp, Loader=yaml.FullLoader)
 
-conf['root']['level'] = arguments.log_level
+s3_config, kafka_config, frontend_config = get_configurations(conf)
+# Configure logging
+# with open('logging.yaml') as fp:
+#     conf = yaml.load(fp, Loader=yaml.FullLoader)
+#
+# conf['root']['level'] = arguments.log_level
 
 logging.basicConfig()
-logging.config.dictConfig(conf)
+main_logger = logging.getLogger('__main__')
+logging.debug('lol')
+main_logger.debug('lol')
+# logging.config.dictConfig(conf)
+
+logging.debug('lol')
+main_logger.debug('lol')
 
 log = logging.getLogger(f'{__name__}.main')
 
@@ -115,16 +125,15 @@ async def startup_event():
     loop = asyncio.get_event_loop()
 
     config = {
-        'bootstrap.servers': 'localhost:9092',
+        'bootstrap.servers': kafka_config.bootstrap_servers,
     }
     register_logging_handler(client=pyrogram_app, group=-458155)
     register_prometheus_handler(client=pyrogram_app, group=-458156)
-    access_key = os.environ.get('MINIO_ACCESS_KEY')
-    secret_key = os.environ.get('MINIO_SECRET_KEY')
-    minio = Minio("localhost:8000",
+
+    minio = Minio(s3_config.url,
                   secure=False,
-                  access_key=access_key,
-                  secret_key=secret_key,
+                  access_key=arguments.s3_access_key,
+                  secret_key=arguments.s3_secret_key,
                   )
     register_kafka_handler(
         client=pyrogram_app,
@@ -132,9 +141,10 @@ async def startup_event():
         minio=minio,
         kafka_producer=Producer(config),
         event_loop=loop,
-        frontend='TODO',
-        topic='frontends.messages.v1',
-        max_file_size=10000,
+        frontend=frontend_config.name,
+        topic=kafka_config.messages_topic,
+        max_file_size=frontend_config.max_file_size,
+        whitelist=set(frontend_config.whitelist),
     )
 
 

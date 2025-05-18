@@ -11,3 +11,12 @@ handlers:
 root:
   level: DEBUG
   handlers: [ console ]
+loggers:
+    qsoWidget:
+        level: DEBUG
+        handlers: [console]
+        propagate: yes
+    __main__:
+        level: DEBUG
+        handlers: [console]
+        propagate: yes

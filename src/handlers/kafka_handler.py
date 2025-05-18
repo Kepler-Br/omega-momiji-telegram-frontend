@@ -2,7 +2,7 @@ import dataclasses
 import json
 import logging
 from asyncio import AbstractEventLoop
-from typing import Optional
+from typing import Optional, Set
 from unittest import case
 
 import pyrogram
@@ -101,6 +101,7 @@ def register_kafka_handler(
         frontend: str,
         topic: str,
         max_file_size: int,
+        whitelist: Set[int],
 ):
     log = logging.getLogger(f'{__name__}.register_kafka_handler')
 
@@ -108,6 +109,8 @@ def register_kafka_handler(
         kafka_producer.produce(topic=topic, key=key, value=value)
 
     async def __kafka_handler(_: Client, message: PyrogramMessage):
+        if message.chat.id not in whitelist:
+            return
         user = pyrogram_user_to_user(message.from_user)
         forwarded_from = pyrogram_user_to_user(message.forward_from)
         chat = pyrogram_chat_to_chat(message.chat)
