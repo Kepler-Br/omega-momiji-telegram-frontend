@@ -1,4 +1,4 @@
-from prometheus_client import Summary, Counter, Gauge
+from prometheus_client import Counter, Gauge
 
 # Message counters
 prometheus_frontend_messages_caption = Counter('frontend_messages_caption', 'Total count of caption messages received')

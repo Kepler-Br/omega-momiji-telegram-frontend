@@ -1,10 +1,13 @@
-from dataclasses import dataclass
 from enum import Enum
 from typing import Optional
+
+from pydantic import BaseModel, Field
+
 
 class ChatType(str, Enum):
     PRIVATE = 'PRIVATE'
     GROUP = 'GROUP'
+
 
 class MediaType(str, Enum):
     STICKER = 'STICKER'
@@ -16,28 +19,28 @@ class MediaType(str, Enum):
     VIDEO_NOTE = 'VIDEO_NOTE'
     OTHER = 'OTHER'
 
-@dataclass
-class Chat:
-    id: str
-    title: str
-    type: ChatType
 
-@dataclass
-class User:
-    id: str
-    first_name: str
-    last_name: str
-    username: str
-    is_bot: bool
+class Chat(BaseModel):
+    id: str = Field(min_length=1)
+    title: str = Field(min_length=1)
+    type: ChatType = Field()
 
-@dataclass
-class NewMessage:
-    user: User
-    chat: Chat
-    forward_from: Optional[User]
-    frontend: str
-    text: Optional[str]
-    reply_to_message_id: Optional[str]
-    media_type: Optional[MediaType]
-    s3_bucket: Optional[str]
-    s3_object: Optional[str]
+
+class User(BaseModel):
+    id: str = Field(min_length=1)
+    first_name: str = Field(min_length=1)
+    last_name: Optional[str] = Field(None)
+    username: str = Field(min_length=1)
+    is_bot: bool = Field()
+
+
+class NewMessage(BaseModel):
+    user: User = Field()
+    chat: Chat = Field()
+    forward_from: Optional[User] = Field(None)
+    frontend: str = Field()
+    text: Optional[str] = Field()
+    reply_to_message_id: Optional[str] = Field(None)
+    media_type: Optional[MediaType] = Field(None)
+    s3_bucket: Optional[str] = Field(None)
+    s3_object: Optional[str] = Field(None)

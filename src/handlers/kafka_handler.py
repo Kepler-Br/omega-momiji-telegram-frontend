@@ -1,13 +1,13 @@
-import dataclasses
-import json
 import logging
+import pathlib
 from asyncio import AbstractEventLoop
+from io import BytesIO
 from typing import Optional, Set
-from unittest import case
 
 import pyrogram
 from confluent_kafka import Producer
 from miniopy_async import Minio
+from pydantic import ValidationError
 from pyrogram import Client
 from pyrogram.types import Message as PyrogramMessage
 
@@ -111,29 +111,50 @@ def register_kafka_handler(
     async def __kafka_handler(_: Client, message: PyrogramMessage):
         if message.chat.id not in whitelist:
             return
-        user = pyrogram_user_to_user(message.from_user)
-        forwarded_from = pyrogram_user_to_user(message.forward_from)
-        chat = pyrogram_chat_to_chat(message.chat)
-        kafka_message = NewMessage(
-            user=user,
-            chat=chat,
-            forward_from=forwarded_from,
-            frontend=frontend,
-            text=message.text,
-            reply_to_message_id=message.reply_to_message_id,
-            media_type=pyrogram_mediatype_to_mediatype(message.media),
-            s3_bucket=None,
-            s3_object=None,
-        )
-        # TODO: topic from config
-
+        try:
+            user = pyrogram_user_to_user(message.from_user)
+            forwarded_from = pyrogram_user_to_user(message.forward_from)
+            chat = pyrogram_chat_to_chat(message.chat)
+            kafka_message = NewMessage(
+                user=user,
+                chat=chat,
+                forward_from=forwarded_from,
+                frontend=frontend,
+                text=message.text,
+                reply_to_message_id=message.reply_to_message_id,
+                media_type=pyrogram_mediatype_to_mediatype(message.media),
+                s3_bucket=None,
+                s3_object=None,
+            )
+        except ValidationError as e:
+            log.error('Contract violation! Expected fields were not filled: %s', e)
+            return
+        if message.photo is not None:
+            if kafka_message.media_type != MediaType.PHOTO:
+                log.warning('message.photo is not None, yet MediaType is not PHOTO')
+            if message.photo.file_size < max_file_size:
+                downloaded: BytesIO = await message.download(in_memory=True, block=True)
+                # TODO: Sounds like shit. Probably we should not seek this
+                downloaded.seek(0)
+                # TODO: Test if pathlib raises error if no suffix found
+                object_name = str(message.photo.file_id) + pathlib.Path(downloaded.name).suffix
+                await minio.put_object(
+                    bucket_name='photo',
+                    object_name=object_name,
+                    data=downloaded,
+                    length=message.photo.file_size,
+                )
+                downloaded.close()
+                kafka_message.s3_bucket = 'photo'
+                kafka_message.s3_object = object_name
+            pass
         try:
             await event_loop.run_in_executor(
                 None,
                 produce,
                 topic,
                 kafka_message.chat.id,
-                json.dumps(dataclasses.asdict(kafka_message))
+                kafka_message.model_dump_json()
             )
         except Exception as e:
             log.error(e)

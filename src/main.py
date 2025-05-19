@@ -1,9 +1,4 @@
 # TODO: Fix logging. Can't set DEBUG level
-# TODO: What needs to be done:
-#       * minio client
-#       * Whitelist
-#       * Config file
-#       * Media size limit
 import asyncio
 import logging.config
 import os
@@ -33,9 +28,6 @@ class ProgramArguments(BaseModel):
     api_id: str = Field(min_length=1)
     s3_access_key: str = Field(min_length=1)
     s3_secret_key: str = Field(min_length=1)
-
-    class Config:
-        validate_by_name = True
 
 
 def parse_arguments() -> ProgramArguments:
