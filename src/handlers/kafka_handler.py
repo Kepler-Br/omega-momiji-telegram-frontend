@@ -121,6 +121,7 @@ def register_kafka_handler(
                 forward_from=forwarded_from,
                 frontend=frontend,
                 text=message.text,
+                mentioned=message.mentioned,
                 reply_to_message_id=message.reply_to_message_id,
                 media_type=pyrogram_mediatype_to_mediatype(message.media),
                 s3_bucket=None,

@@ -103,13 +103,6 @@ async def readiness_probe():
     }
 
 
-@fastapi_app.get('/liveness')
-async def readiness_probe():
-    return {
-        'liveness': True
-    }
-
-
 @fastapi_app.on_event("startup")
 async def startup_event():
     log.info('Application startup')

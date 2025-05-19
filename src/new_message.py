@@ -29,7 +29,7 @@ class Chat(BaseModel):
 class User(BaseModel):
     id: str = Field(min_length=1)
     first_name: str = Field(min_length=1)
-    last_name: Optional[str] = Field(None)
+    last_name: Optional[str] = Field(default=None)
     username: str = Field(min_length=1)
     is_bot: bool = Field()
 
@@ -37,10 +37,11 @@ class User(BaseModel):
 class NewMessage(BaseModel):
     user: User = Field()
     chat: Chat = Field()
-    forward_from: Optional[User] = Field(None)
+    forward_from: Optional[User] = Field(default=None)
     frontend: str = Field()
     text: Optional[str] = Field()
-    reply_to_message_id: Optional[str] = Field(None)
-    media_type: Optional[MediaType] = Field(None)
-    s3_bucket: Optional[str] = Field(None)
-    s3_object: Optional[str] = Field(None)
+    mentioned: bool = Field()
+    reply_to_message_id: Optional[str] = Field(default=None)
+    media_type: Optional[MediaType] = Field(default=None)
+    s3_bucket: Optional[str] = Field(default=None)
+    s3_object: Optional[str] = Field(default=None)
